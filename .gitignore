@@ -9,3 +9,6 @@ mypubkey
 *.cov
 .DS_Store
 *.db
+__pycache__
+.vscode
+.pyc
