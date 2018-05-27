@@ -16,14 +16,37 @@ import (
 	"github.com/TykTechnologies/tyk/apidef"
 )
 
+const (
+	defaultManifestPath = "./manifest.json"
+	defaultBundleOutput = "./bundle.zip"
+)
+
 var (
 	bundleOutput, privKey string
 	forceInsecure         *bool
 )
 
-const defaultBundleOutput = "./bundle.zip"
-
 func init() {
+}
+
+func loadManifest() (manifest *apidef.BundleManifest, err error) {
+	if _, err = os.Stat(defaultManifestPath); err != nil {
+		return nil, errors.New("Manifest file doesn't exist")
+	}
+
+	var manifestData []byte
+	manifestData, err = ioutil.ReadFile(defaultManifestPath)
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(manifestData, &manifest)
+	if err != nil {
+		return nil, errors.New("Couldn't parse manifest file")
+	}
+	if err = BundleValidateManifest(manifest); err != nil {
+		return nil, err
+	}
+	return manifest, nil
 }
 
 // Bundle will handle the bundle command calls.
@@ -32,35 +55,16 @@ func Bundle(command string, thisBundleOutput string, thisPrivKey string, thisFor
 	privKey = thisPrivKey
 	forceInsecure = thisForceInsecure
 
+	manifest, err := loadManifest()
+	if err != nil {
+		panic(err)
+	}
 	switch command {
 	case "build":
-		manifestPath := "./manifest.json"
-		if _, err = os.Stat(manifestPath); err == nil {
-			var manifestData []byte
-			manifestData, err = ioutil.ReadFile(manifestPath)
-
-			var manifest apidef.BundleManifest
-			err = json.Unmarshal(manifestData, &manifest)
-
-			if err != nil {
-				fmt.Println("Couldn't parse manifest file!")
-				break
-			}
-
-			err = BundleValidateManifest(&manifest)
-
-			if err != nil {
-				break
-			}
-
-			// The manifest is valid, we should do the checksum and sign step at this point.
-			bundleBuild(&manifest)
-
-		} else {
-			err = errors.New("Manifest file doesn't exist.")
-		}
+		// The manifest is valid, we should do the checksum and sign step at this point.
+		bundleBuild(manifest)
 	default:
-		err = errors.New("Invalid command.")
+		err = errors.New("Invalid command")
 	}
 	return err
 }
